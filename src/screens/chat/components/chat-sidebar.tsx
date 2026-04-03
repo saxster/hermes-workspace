@@ -3,6 +3,7 @@ import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
+  BookOpen01Icon,
   BrainIcon,
   Chat01Icon,
   Clock01Icon,
@@ -14,7 +15,7 @@ import {
   PencilEdit02Icon,
   PuzzleIcon,
 
-  Search01Icon, Settings01Icon, Sun02Icon 
+  Search01Icon, Settings01Icon, Sun02Icon
 } from '@hugeicons/core-free-icons'
 import { AnimatePresence, motion } from 'motion/react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
@@ -555,8 +556,9 @@ function ChatSidebarComponent({
   const isTerminalActive = pathname === '/terminal'
   const isJobsActive = pathname === '/jobs'
   const isMemoryActive = pathname === '/memory'
+  const isLearnActive = pathname === '/learn'
   const mainRoutes = ['/chat', '/new', '/files', '/terminal']
-  const knowledgeRoutes = ['/memory', '/skills']
+  const knowledgeRoutes = ['/memory', '/skills', '/learn']
   const systemRoutes = ['/settings', '/logs']
 
   useEffect(() => {
@@ -800,6 +802,13 @@ function ChatSidebarComponent({
       label: 'Skills',
       active: isSkillsActive,
       dataTour: 'skills',
+    },
+    {
+      kind: 'link',
+      to: '/learn',
+      icon: BookOpen01Icon,
+      label: 'Learn',
+      active: isLearnActive,
     },
   ]
 

@@ -10,6 +10,7 @@ import {
   textFromMessage,
 } from '../utils'
 import { MessageActionsBar } from './message-actions-bar'
+import { TeachCard, extractTeachCard, stripTeachCardJson } from './teach-card'
 import type {
   ChatAttachment,
   ChatMessage,
@@ -1515,6 +1516,17 @@ function MessageItemComponent({
       ? remoteStreamingThinking
       : thinkingFromMessage(message)
   const isUser = role === 'user'
+
+  // Detect teach card JSON in assistant messages
+  const teachCardData = useMemo(
+    () => (!isUser && !effectiveIsStreaming ? extractTeachCard(assistantDisplayText) : null),
+    [assistantDisplayText, effectiveIsStreaming, isUser],
+  )
+  const textWithoutTeachCard = useMemo(
+    () => (teachCardData ? stripTeachCardJson(assistantDisplayText) : assistantDisplayText),
+    [assistantDisplayText, teachCardData],
+  )
+
   const execNotification = isUser ? readExecNotification(message) : null
   const timestamp = getMessageTimestamp(message)
   const attachments = Array.isArray(message.attachments)
@@ -1997,7 +2009,19 @@ function MessageItemComponent({
                   </span>
                 ) : hasRevealedText ? (
                   <div className="relative">
-                    {standaloneMarkdownDocument ? (
+                    {teachCardData ? (
+                      <>
+                        {textWithoutTeachCard.length > 0 && (
+                          <MessageContent
+                            markdown
+                            className="text-primary-900 bg-transparent w-full text-pretty mb-3"
+                          >
+                            {textWithoutTeachCard}
+                          </MessageContent>
+                        )}
+                        <TeachCard data={teachCardData} />
+                      </>
+                    ) : standaloneMarkdownDocument ? (
                       <MarkdownMessageCard content={standaloneMarkdownDocument} />
                     ) : (
                       <MessageContent

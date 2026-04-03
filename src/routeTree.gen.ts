@@ -13,6 +13,7 @@ import { Route as TerminalRouteImport } from './routes/terminal'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as MemoryRouteImport } from './routes/memory'
+import { Route as LearnRouteImport } from './routes/learn'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as FilesRouteImport } from './routes/files'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -41,6 +42,7 @@ import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiHermesJobsRouteImport } from './routes/api/hermes-jobs'
 import { Route as ApiHermesConfigRouteImport } from './routes/api/hermes-config'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-status'
+import { Route as ApiFlashcardsRouteImport } from './routes/api/flashcards'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
 import { Route as ApiContextUsageRouteImport } from './routes/api/context-usage'
@@ -56,6 +58,8 @@ import { Route as ApiMemorySearchRouteImport } from './routes/api/memory/search'
 import { Route as ApiMemoryReadRouteImport } from './routes/api/memory/read'
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
 import { Route as ApiHermesJobsJobIdRouteImport } from './routes/api/hermes-jobs.$jobId'
+import { Route as ApiFlashcardsStatsRouteImport } from './routes/api/flashcards.stats'
+import { Route as ApiFlashcardsRateRouteImport } from './routes/api/flashcards.rate'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 
 const TerminalRoute = TerminalRouteImport.update({
@@ -76,6 +80,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const MemoryRoute = MemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnRoute = LearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -218,6 +227,11 @@ const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
   path: '/api/gateway-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFlashcardsRoute = ApiFlashcardsRouteImport.update({
+  id: '/api/flashcards',
+  path: '/api/flashcards',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiFilesRoute = ApiFilesRouteImport.update({
   id: '/api/files',
   path: '/api/files',
@@ -293,6 +307,16 @@ const ApiHermesJobsJobIdRoute = ApiHermesJobsJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => ApiHermesJobsRoute,
 } as any)
+const ApiFlashcardsStatsRoute = ApiFlashcardsStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => ApiFlashcardsRoute,
+} as any)
+const ApiFlashcardsRateRoute = ApiFlashcardsRateRouteImport.update({
+  id: '/rate',
+  path: '/rate',
+  getParentRoute: () => ApiFlashcardsRoute,
+} as any)
 const ApiSessionsSessionKeyStatusRoute =
   ApiSessionsSessionKeyStatusRouteImport.update({
     id: '/$sessionKey/status',
@@ -306,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
   '/jobs': typeof JobsRoute
+  '/learn': typeof LearnRoute
   '/memory': typeof MemoryRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
@@ -317,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
+  '/api/flashcards': typeof ApiFlashcardsRouteWithChildren
   '/api/gateway-status': typeof ApiGatewayStatusRoute
   '/api/hermes-config': typeof ApiHermesConfigRoute
   '/api/hermes-jobs': typeof ApiHermesJobsRouteWithChildren
@@ -340,6 +366,8 @@ export interface FileRoutesByFullPath {
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat/': typeof ChatIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/api/flashcards/rate': typeof ApiFlashcardsRateRoute
+  '/api/flashcards/stats': typeof ApiFlashcardsStatsRoute
   '/api/hermes-jobs/$jobId': typeof ApiHermesJobsJobIdRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
@@ -356,6 +384,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
   '/jobs': typeof JobsRoute
+  '/learn': typeof LearnRoute
   '/memory': typeof MemoryRoute
   '/skills': typeof SkillsRoute
   '/terminal': typeof TerminalRoute
@@ -366,6 +395,7 @@ export interface FileRoutesByTo {
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
+  '/api/flashcards': typeof ApiFlashcardsRouteWithChildren
   '/api/gateway-status': typeof ApiGatewayStatusRoute
   '/api/hermes-config': typeof ApiHermesConfigRoute
   '/api/hermes-jobs': typeof ApiHermesJobsRouteWithChildren
@@ -389,6 +419,8 @@ export interface FileRoutesByTo {
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat': typeof ChatIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/api/flashcards/rate': typeof ApiFlashcardsRateRoute
+  '/api/flashcards/stats': typeof ApiFlashcardsStatsRoute
   '/api/hermes-jobs/$jobId': typeof ApiHermesJobsJobIdRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
@@ -406,6 +438,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
   '/jobs': typeof JobsRoute
+  '/learn': typeof LearnRoute
   '/memory': typeof MemoryRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
@@ -417,6 +450,7 @@ export interface FileRoutesById {
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
+  '/api/flashcards': typeof ApiFlashcardsRouteWithChildren
   '/api/gateway-status': typeof ApiGatewayStatusRoute
   '/api/hermes-config': typeof ApiHermesConfigRoute
   '/api/hermes-jobs': typeof ApiHermesJobsRouteWithChildren
@@ -440,6 +474,8 @@ export interface FileRoutesById {
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat/': typeof ChatIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/api/flashcards/rate': typeof ApiFlashcardsRateRoute
+  '/api/flashcards/stats': typeof ApiFlashcardsStatsRoute
   '/api/hermes-jobs/$jobId': typeof ApiHermesJobsJobIdRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
@@ -458,6 +494,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/files'
     | '/jobs'
+    | '/learn'
     | '/memory'
     | '/settings'
     | '/skills'
@@ -469,6 +506,7 @@ export interface FileRouteTypes {
     | '/api/context-usage'
     | '/api/events'
     | '/api/files'
+    | '/api/flashcards'
     | '/api/gateway-status'
     | '/api/hermes-config'
     | '/api/hermes-jobs'
@@ -492,6 +530,8 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/chat/'
     | '/settings/'
+    | '/api/flashcards/rate'
+    | '/api/flashcards/stats'
     | '/api/hermes-jobs/$jobId'
     | '/api/memory/list'
     | '/api/memory/read'
@@ -508,6 +548,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/files'
     | '/jobs'
+    | '/learn'
     | '/memory'
     | '/skills'
     | '/terminal'
@@ -518,6 +559,7 @@ export interface FileRouteTypes {
     | '/api/context-usage'
     | '/api/events'
     | '/api/files'
+    | '/api/flashcards'
     | '/api/gateway-status'
     | '/api/hermes-config'
     | '/api/hermes-jobs'
@@ -541,6 +583,8 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/chat'
     | '/settings'
+    | '/api/flashcards/rate'
+    | '/api/flashcards/stats'
     | '/api/hermes-jobs/$jobId'
     | '/api/memory/list'
     | '/api/memory/read'
@@ -557,6 +601,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/files'
     | '/jobs'
+    | '/learn'
     | '/memory'
     | '/settings'
     | '/skills'
@@ -568,6 +613,7 @@ export interface FileRouteTypes {
     | '/api/context-usage'
     | '/api/events'
     | '/api/files'
+    | '/api/flashcards'
     | '/api/gateway-status'
     | '/api/hermes-config'
     | '/api/hermes-jobs'
@@ -591,6 +637,8 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/chat/'
     | '/settings/'
+    | '/api/flashcards/rate'
+    | '/api/flashcards/stats'
     | '/api/hermes-jobs/$jobId'
     | '/api/memory/list'
     | '/api/memory/read'
@@ -608,6 +656,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   FilesRoute: typeof FilesRoute
   JobsRoute: typeof JobsRoute
+  LearnRoute: typeof LearnRoute
   MemoryRoute: typeof MemoryRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
@@ -619,6 +668,7 @@ export interface RootRouteChildren {
   ApiContextUsageRoute: typeof ApiContextUsageRoute
   ApiEventsRoute: typeof ApiEventsRoute
   ApiFilesRoute: typeof ApiFilesRoute
+  ApiFlashcardsRoute: typeof ApiFlashcardsRouteWithChildren
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
   ApiHermesConfigRoute: typeof ApiHermesConfigRoute
   ApiHermesJobsRoute: typeof ApiHermesJobsRouteWithChildren
@@ -676,6 +726,13 @@ declare module '@tanstack/react-router' {
       path: '/memory'
       fullPath: '/memory'
       preLoaderRoute: typeof MemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn': {
+      id: '/learn'
+      path: '/learn'
+      fullPath: '/learn'
+      preLoaderRoute: typeof LearnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -874,6 +931,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGatewayStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/flashcards': {
+      id: '/api/flashcards'
+      path: '/api/flashcards'
+      fullPath: '/api/flashcards'
+      preLoaderRoute: typeof ApiFlashcardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/files': {
       id: '/api/files'
       path: '/api/files'
@@ -979,6 +1043,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesJobsJobIdRouteImport
       parentRoute: typeof ApiHermesJobsRoute
     }
+    '/api/flashcards/stats': {
+      id: '/api/flashcards/stats'
+      path: '/stats'
+      fullPath: '/api/flashcards/stats'
+      preLoaderRoute: typeof ApiFlashcardsStatsRouteImport
+      parentRoute: typeof ApiFlashcardsRoute
+    }
+    '/api/flashcards/rate': {
+      id: '/api/flashcards/rate'
+      path: '/rate'
+      fullPath: '/api/flashcards/rate'
+      preLoaderRoute: typeof ApiFlashcardsRateRouteImport
+      parentRoute: typeof ApiFlashcardsRoute
+    }
     '/api/sessions/$sessionKey/status': {
       id: '/api/sessions/$sessionKey/status'
       path: '/$sessionKey/status'
@@ -1001,6 +1079,20 @@ const SettingsRouteChildren: SettingsRouteChildren = {
 
 const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
   SettingsRouteChildren,
+)
+
+interface ApiFlashcardsRouteChildren {
+  ApiFlashcardsRateRoute: typeof ApiFlashcardsRateRoute
+  ApiFlashcardsStatsRoute: typeof ApiFlashcardsStatsRoute
+}
+
+const ApiFlashcardsRouteChildren: ApiFlashcardsRouteChildren = {
+  ApiFlashcardsRateRoute: ApiFlashcardsRateRoute,
+  ApiFlashcardsStatsRoute: ApiFlashcardsStatsRoute,
+}
+
+const ApiFlashcardsRouteWithChildren = ApiFlashcardsRoute._addFileChildren(
+  ApiFlashcardsRouteChildren,
 )
 
 interface ApiHermesJobsRouteChildren {
@@ -1035,6 +1127,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   FilesRoute: FilesRoute,
   JobsRoute: JobsRoute,
+  LearnRoute: LearnRoute,
   MemoryRoute: MemoryRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
@@ -1046,6 +1139,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiContextUsageRoute: ApiContextUsageRoute,
   ApiEventsRoute: ApiEventsRoute,
   ApiFilesRoute: ApiFilesRoute,
+  ApiFlashcardsRoute: ApiFlashcardsRouteWithChildren,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
   ApiHermesConfigRoute: ApiHermesConfigRoute,
   ApiHermesJobsRoute: ApiHermesJobsRouteWithChildren,

@@ -30,6 +30,8 @@ const SLASH_COMMANDS: Array<SlashCommandDefinition> = [
   { command: '/save', description: 'Save the current conversation' },
   { command: '/skills', description: 'Browse and manage skills' },
   { command: '/skin', description: 'Change the display theme' },
+  { command: '/teach', description: 'Learn about any topic with rich explanations' },
+  { command: '/review', description: 'Review flashcards due today' },
   { command: '/help', description: 'Show available commands' },
 ]
 
