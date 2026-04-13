@@ -349,9 +349,3 @@ const Markdown = memo(MarkdownComponent)
 Markdown.displayName = 'Markdown'
 
 export { Markdown }
-
-
-const Markdown = memo(MarkdownComponent)
-Markdown.displayName = 'Markdown'
-
-export { Markdown }
