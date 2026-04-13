@@ -1,4 +1,3 @@
-import { marked } from 'marked'
 import { createContext, memo, useContext, useId, useMemo, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -15,11 +14,6 @@ export type MarkdownProps = {
   id?: string
   className?: string
   components?: Partial<Components>
-}
-
-function parseMarkdownIntoBlocks(markdown: string): Array<string> {
-  const tokens = marked.lexer(markdown)
-  return tokens.map((token) => token.raw)
 }
 
 function extractLanguage(className?: string): string {
@@ -80,7 +74,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       <CodeBlock
         content={String(children ?? '')}
         language={language}
-        className="w-full my-2"
+        className="w-full my-4"
       />
     )
   },
@@ -89,7 +83,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   h1: function H1Component({ children }) {
     return (
-      <h1 className="mt-5 mb-2 text-2xl leading-tight font-medium text-primary-950 text-balance first:mt-0">
+      <h1 className="mt-8 mb-4 text-3xl leading-tight font-semibold text-primary-950 text-balance first:mt-0">
         {children}
       </h1>
     )
@@ -99,7 +93,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return (
       <h2
         id={id}
-        className="mt-5 mb-2 text-xl leading-tight font-medium text-primary-950 text-balance first:mt-0"
+        className="mt-8 mb-4 text-2xl leading-tight font-semibold text-primary-950 text-balance first:mt-0 border-b border-primary-100 pb-2"
       >
         <a
           href={`#${id}`}
@@ -121,7 +115,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return (
       <h3
         id={id}
-        className="mt-4 mb-1.5 text-lg leading-tight font-medium text-primary-950 text-balance first:mt-0"
+        className="mt-6 mb-3 text-xl leading-tight font-semibold text-primary-950 text-balance first:mt-0"
       >
         <a
           href={`#${id}`}
@@ -140,46 +134,48 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   h4: function H4Component({ children }) {
     return (
-      <h4 className="mt-4 mb-1.5 text-base leading-tight font-medium text-primary-950 text-balance first:mt-0">
+      <h4 className="mt-6 mb-3 text-lg leading-tight font-semibold text-primary-950 text-balance first:mt-0">
         {children}
       </h4>
     )
   },
   h5: function H5Component({ children }) {
     return (
-      <h5 className="mt-3.5 mb-1 text-sm leading-tight font-medium text-primary-950 text-balance first:mt-0">
+      <h5 className="mt-4 mb-2 text-base leading-tight font-semibold text-primary-950 text-balance first:mt-0">
         {children}
       </h5>
     )
   },
   h6: function H6Component({ children }) {
     return (
-      <h6 className="mt-3.5 mb-1 text-sm leading-tight font-medium text-primary-900 text-balance first:mt-0">
+      <h6 className="mt-4 mb-2 text-base leading-tight font-semibold text-primary-900 text-balance first:mt-0">
         {children}
       </h6>
     )
   },
   p: function PComponent({ children }) {
     return (
-      <p className="text-primary-950 text-pretty leading-relaxed">{children}</p>
+      <p className="mb-4 last:mb-0 text-primary-950 text-pretty leading-relaxed">
+        {children}
+      </p>
     )
   },
   ul: function UlComponent({ children }) {
     return (
-      <ul className="ml-4 list-disc text-primary-950 marker:text-primary-400">
+      <ul className="mb-4 ml-6 list-disc text-primary-950 marker:text-primary-400 space-y-1">
         {children}
       </ul>
     )
   },
   ol: function OlComponent({ children }) {
     return (
-      <ol className="ml-4 list-decimal text-primary-950 marker:text-primary-500">
+      <ol className="mb-4 ml-6 list-decimal text-primary-950 marker:text-primary-500 space-y-1">
         {children}
       </ol>
     )
   },
   li: function LiComponent({ children }) {
-    return <li className="leading-relaxed">{children}</li>
+    return <li className="leading-relaxed pl-1">{children}</li>
   },
   a: function AComponent({ children, href }) {
     return (
@@ -195,19 +191,19 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   blockquote: function BlockquoteComponent({ children }) {
     return (
-      <blockquote className="border-l-2 border-primary-300 pl-4 text-primary-900 italic">
+      <blockquote className="my-6 border-l-4 border-primary-300 pl-4 py-1 text-primary-900 italic bg-primary-50/50 rounded-r-lg">
         {children}
       </blockquote>
     )
   },
   strong: function StrongComponent({ children }) {
-    return <strong className="font-medium text-primary-950">{children}</strong>
+    return <strong className="font-semibold text-primary-950">{children}</strong>
   },
   em: function EmComponent({ children }) {
     return <em className="italic text-primary-950">{children}</em>
   },
   hr: function HrComponent() {
-    return <hr className="my-3 border-primary-200" />
+    return <hr className="my-8 border-primary-200" />
   },
   table: function TableComponent({ children }) {
     const headersRef = useRef<Array<string>>([])
@@ -217,7 +213,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       <TableRenderContext.Provider
         value={{ headersRef, columnIndexRef, collectingHeaderRef }}
       >
-        <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-primary-200 bg-primary-50/20">
+        <div className="my-6 max-w-full overflow-x-auto rounded-xl border border-primary-200 bg-primary-50/20 shadow-sm">
           <table className="w-full min-w-max border-collapse text-sm sm:min-w-full tabular-nums">
             {children}
           </table>
@@ -256,7 +252,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       context.columnIndexRef.current = 0
     }
     return (
-      <tr className="odd:bg-primary-50/60 even:bg-primary-100/20 transition-colors hover:bg-primary-100/45 max-sm:mb-3 max-sm:block max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:border-primary-200 max-sm:bg-primary-50">
+      <tr className="odd:bg-primary-50/60 even:bg-white transition-colors hover:bg-primary-100/45 max-sm:mb-3 max-sm:block max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:border-primary-200 max-sm:bg-primary-50">
         {children}
       </tr>
     )
@@ -271,7 +267,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       }
     }
     return (
-      <th className="px-3 py-2 text-left font-medium text-primary-950 whitespace-nowrap">
+      <th className="px-4 py-3 text-left font-semibold text-primary-950 whitespace-nowrap">
         {children}
       </th>
     )
@@ -287,7 +283,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return (
       <td
         data-label={label}
-        className="px-3 py-2 text-primary-950 align-top max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700"
+        className="px-4 py-3 text-primary-950 align-top max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700"
       >
         {children}
       </td>
@@ -335,25 +331,25 @@ function MarkdownComponent({
 }: MarkdownProps) {
   const generatedId = useId()
   const blockId = id ?? generatedId
-  const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children])
 
   return (
     <div
+      id={blockId}
       className={cn(
-        'flex flex-col gap-2 break-words overflow-hidden',
+        'flex flex-col gap-0 break-words overflow-hidden',
         className,
       )}
     >
-      {blocks.map((block, index) => (
-        <MemoizedMarkdownBlock
-          key={`${blockId}-block-${index}`}
-          content={block}
-          components={components}
-        />
-      ))}
+      <MemoizedMarkdownBlock content={children} components={components} />
     </div>
   )
 }
+
+const Markdown = memo(MarkdownComponent)
+Markdown.displayName = 'Markdown'
+
+export { Markdown }
+
 
 const Markdown = memo(MarkdownComponent)
 Markdown.displayName = 'Markdown'

@@ -72,8 +72,22 @@ function getWordBoundaryIndex(text: string, wordCount: number): number {
   let index = 0
   let inWord = false
 
+  const DELIMITERS = ['**', '__', '$$', '[`', '`', '> ', '##']
+
   while (index < text.length) {
     const character = text[index] ?? ''
+    
+    // Check if we are at a markdown delimiter start - if so, don't break inside it
+    const remaining = text.slice(index)
+    const activeDelimiter = DELIMITERS.find(d => remaining.startsWith(d))
+    
+    if (activeDelimiter) {
+      // Advance past the entire delimiter
+      index += activeDelimiter.length
+      // Delimiters count as part of the "word" flow or a boundary
+      continue
+    }
+
     if (isWhitespaceCharacter(character)) {
       if (inWord) {
         count += 1
@@ -1160,11 +1174,37 @@ function InlineToolSectionItem({
   forceOpen?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const [showRawJson, setShowRawJson] = useState(false)
+  const [viewMode, setViewMode] = useState<'formatted' | 'raw' | 'json'>('raw')
   const [showFullOutput, setShowFullOutput] = useState(false)
+  
   useEffect(() => {
     if (forceOpen) setOpen(true)
   }, [forceOpen])
+
+  const outputText = toolSection.outputText || toolSection.errorText || ''
+  
+  // Heuristic to detect if output is likely markdown
+  const isLikelyMarkdown = useMemo(() => {
+    const trimmed = outputText.trim()
+    if (trimmed.length < 3) return false
+    // Check for common markdown patterns: headers, lists, code fences, links, tables
+    return (
+      /^#+\s/m.test(trimmed) || 
+      /^\s*[-*+]\s/m.test(trimmed) || 
+      /^\s*\d+\.\s/m.test(trimmed) ||
+      /^```/m.test(trimmed) ||
+      /\[.*\]\(.*\)/.test(trimmed) ||
+      /^\|.*\|/m.test(trimmed) ||
+      /^>\s/m.test(trimmed)
+    )
+  }, [outputText])
+
+  // Default to formatted if likely markdown, otherwise raw
+  useEffect(() => {
+    if (isLikelyMarkdown) {
+      setViewMode('formatted')
+    }
+  }, [isLikelyMarkdown])
 
   const icon = TOOL_ICONS[toolSection.type] ?? '🔧'
   const isError = toolSection.state === 'output-error'
@@ -1178,7 +1218,6 @@ function InlineToolSectionItem({
     headerArg && headerArg.length > 60 ? `${headerArg.slice(0, 57)}…` : headerArg
 
   const rawJsonPayload = useMemo(() => {
-    if (!showRawJson) return ''
     return JSON.stringify(
       {
         type: toolSection.type,
@@ -1188,12 +1227,12 @@ function InlineToolSectionItem({
       null,
       2,
     )
-  }, [showRawJson, toolSection.type, toolSection.input, toolSection.outputText, toolSection.errorText])
-  const outputText = toolSection.outputText || toolSection.errorText || ''
-  const shouldTruncateOutput = outputText.length > 800
+  }, [toolSection.type, toolSection.input, toolSection.outputText, toolSection.errorText])
+
+  const shouldTruncateOutput = outputText.length > 1200 && viewMode !== 'formatted'
   const displayedOutputText =
     shouldTruncateOutput && !showFullOutput
-      ? `${outputText.slice(0, 800)}…`
+      ? `${outputText.slice(0, 1200)}…`
       : outputText
 
   return (
@@ -1242,7 +1281,7 @@ function InlineToolSectionItem({
       <CollapsiblePanel>
         <div className="mt-0.5 ml-3 flex flex-col gap-1.5 pb-1.5 border-l border-primary-200/60 pl-2">
           {/* Args */}
-          {toolSection.input && Object.keys(toolSection.input).length > 0 && !showRawJson ? (
+          {toolSection.input && Object.keys(toolSection.input).length > 0 && viewMode !== 'json' ? (
             <div>
               <div className="text-[9px] uppercase tracking-widest text-primary-500 mb-0.5 font-sans">Arguments</div>
               {toolSection.type === 'exec' && headerArg ? (
@@ -1258,18 +1297,25 @@ function InlineToolSectionItem({
           ) : null}
 
           {/* Output / error */}
-          {!showRawJson ? (
+          {viewMode === 'formatted' ? (
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-primary-500 mb-1 font-sans">Report</div>
+              <div className="rounded-xl border border-primary-200 bg-white p-4 shadow-sm">
+                <Markdown className="text-sm">{outputText}</Markdown>
+              </div>
+            </div>
+          ) : viewMode === 'raw' ? (
             isError && toolSection.errorText ? (
               <div>
                 <div className="text-[9px] uppercase tracking-widest text-red-500 mb-0.5 font-sans">Error</div>
-                <pre className="max-h-48 overflow-x-auto whitespace-pre-wrap break-words rounded p-2 text-xs font-mono text-red-500" style={{ background: 'var(--code-bg, var(--theme-card))' }}>
+                <pre className="max-h-80 overflow-x-auto whitespace-pre-wrap break-words rounded p-2 text-xs font-mono text-red-500" style={{ background: 'var(--code-bg, var(--theme-card))' }}>
                   {displayedOutputText}
                 </pre>
               </div>
             ) : toolSection.outputText ? (
               <div>
                 <div className="text-[9px] uppercase tracking-widest text-primary-500 mb-0.5 font-sans">Output</div>
-                <pre className="max-h-48 overflow-x-auto whitespace-pre-wrap break-words rounded p-2 text-xs font-mono" style={{ background: 'var(--code-bg, var(--theme-card))', color: 'var(--code-foreground)' }}>
+                <pre className="max-h-80 overflow-x-auto whitespace-pre-wrap break-words rounded p-2 text-xs font-mono" style={{ background: 'var(--code-bg, var(--theme-card))', color: 'var(--code-foreground)' }}>
                   {displayedOutputText}
                 </pre>
               </div>
@@ -1279,9 +1325,12 @@ function InlineToolSectionItem({
               <span className="text-xs italic text-primary-500">no output</span>
             )
           ) : (
-            <pre className="max-h-64 overflow-x-auto whitespace-pre-wrap break-words rounded p-2 text-[11px] font-mono" style={{ background: 'var(--code-bg, var(--theme-card))', color: 'var(--code-foreground)' }}>
-              {rawJsonPayload}
-            </pre>
+            <div>
+              <div className="text-[9px] uppercase tracking-widest text-primary-500 mb-0.5 font-sans">Raw JSON</div>
+              <pre className="max-h-80 overflow-x-auto whitespace-pre-wrap break-words rounded p-2 text-[11px] font-mono" style={{ background: 'var(--code-bg, var(--theme-card))', color: 'var(--code-foreground)' }}>
+                {rawJsonPayload}
+              </pre>
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1298,23 +1347,55 @@ function InlineToolSectionItem({
               </button>
             ) : null}
 
-            {/* Raw JSON toggle */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowRawJson((v) => !v)
-              }}
-              className="self-start text-[9px] font-sans text-primary-500 hover:text-primary-700 transition-colors"
-            >
-              {showRawJson ? '← formatted' : 'raw JSON →'}
-            </button>
+            {/* View Mode toggles */}
+            <div className="flex items-center gap-2 border-l border-primary-200 ml-1 pl-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setViewMode('formatted')
+                }}
+                className={cn(
+                  "text-[9px] font-sans transition-colors",
+                  viewMode === 'formatted' ? "text-primary-900 font-bold" : "text-primary-500 hover:text-primary-700"
+                )}
+              >
+                formatted
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setViewMode('raw')
+                }}
+                className={cn(
+                  "text-[9px] font-sans transition-colors",
+                  viewMode === 'raw' ? "text-primary-900 font-bold" : "text-primary-500 hover:text-primary-700"
+                )}
+              >
+                raw
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setViewMode('json')
+                }}
+                className={cn(
+                  "text-[9px] font-sans transition-colors",
+                  viewMode === 'json' ? "text-primary-900 font-bold" : "text-primary-500 hover:text-primary-700"
+                )}
+              >
+                json
+              </button>
+            </div>
           </div>
         </div>
       </CollapsiblePanel>
     </Collapsible>
   )
 }
+
 
 
 
