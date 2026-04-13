@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
+import { MacroPulseWidget } from '@/components/macro-pulse-widget'
+import { MacroDivergenceChart } from '@/components/macro-divergence-chart'
 import {
   AreaChart,
   Area,
@@ -449,9 +451,9 @@ export function DashboardScreen() {
         />
       )}
 
-      {/* ── Charts + Model + Skills ── */}
+      {/* ── Charts + Model + Skills + Macro ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-4">
           {sessionsAvailable ? (
             <ActivityChart sessions={sessions} />
           ) : (
@@ -461,7 +463,10 @@ export function DashboardScreen() {
             />
           )}
         </div>
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-3">
+          <MacroPulseWidget />
+        </div>
+        <div className="lg:col-span-2">
           <ModelCard />
         </div>
         <div className="lg:col-span-3">
@@ -470,35 +475,47 @@ export function DashboardScreen() {
       </div>
 
       {/* ── Recent Sessions (minimal) ── */}
-      {sessionsAvailable ? (
-        <GlassCard
-          title="Recent Sessions"
-          titleRight={
-            <button type="button" className="text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors"
-              onClick={() => navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'main' } })}>
-              View all →
-            </button>
-          }
-          accentColor="#6366f1"
-          noPadding
-        >
-          <div className="py-1">
-            {recentSessions.length === 0 ? (
-              <div className="text-xs text-neutral-400 py-8 text-center">No sessions yet — start a chat!</div>
-            ) : (
-              recentSessions.map((s) => (
-                <SessionRow key={s.id} session={s} maxTokens={maxTokens}
-                  onClick={() => navigate({ to: '/chat/$sessionKey', params: { sessionKey: s.id } })} />
-              ))
-            )}
-          </div>
-        </GlassCard>
-      ) : (
-        <UnavailableWidget
-          title="Recent Sessions"
-          description={getUnavailableReason('sessions')}
-        />
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+        <div className="lg:col-span-8">
+          {sessionsAvailable ? (
+            <GlassCard
+              title="Recent Sessions"
+              titleRight={
+                <button type="button" className="text-[10px] text-neutral-600 hover:text-neutral-400 transition-colors"
+                  onClick={() => navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'main' } })}>
+                  View all →
+                </button>
+              }
+              accentColor="#6366f1"
+              noPadding
+            >
+              <div className="py-1">
+                {recentSessions.length === 0 ? (
+                  <div className="text-xs text-neutral-400 py-8 text-center">No sessions yet — start a chat!</div>
+                ) : (
+                  recentSessions.map((s) => (
+                    <SessionRow key={s.id} session={s} maxTokens={maxTokens}
+                      onClick={() => navigate({ to: '/chat/$sessionKey', params: { sessionKey: s.id } })} />
+                  ))
+                )}
+              </div>
+            </GlassCard>
+          ) : (
+            <UnavailableWidget
+              title="Recent Sessions"
+              description={getUnavailableReason('sessions')}
+            />
+          )}
+        </div>
+        <div className="lg:col-span-4">
+          <MacroDivergenceChart 
+            metricA="ELEC_GEN" 
+            metricB="NIFTY_50" 
+            labelA="Electricity (GW)" 
+            labelB="Nifty 50" 
+          />
+        </div>
+      </div>
     </div>
   )
 }
