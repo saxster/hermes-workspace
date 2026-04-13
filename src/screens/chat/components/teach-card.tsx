@@ -23,6 +23,8 @@ export type TeachCardData = {
   topic: string
   domain?: string
   summary?: string
+  plain_language_definition?: string
+  why_it_matters?: string
   definition?: string
   key_points?: Array<string>
   analogy?: string
@@ -186,6 +188,27 @@ const TeachCard = memo(function TeachCard({ data, className, onTeachConcept }: T
 
       {/* Body */}
       <div className="flex flex-col gap-3 px-4 py-3">
+        {/* Plain-language definition (Feynman-required) */}
+        {data.plain_language_definition && (
+          <div>
+            <Markdown className="text-base font-medium text-primary-900 dark:text-primary-100 leading-relaxed">
+              {data.plain_language_definition}
+            </Markdown>
+          </div>
+        )}
+
+        {/* Why it matters (the hook) */}
+        {data.why_it_matters && (
+          <div className="rounded-lg border-l-2 border-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/20 px-3 py-2">
+            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Why it matters
+            </p>
+            <Markdown className="text-sm text-emerald-900 dark:text-emerald-200 leading-relaxed">
+              {data.why_it_matters}
+            </Markdown>
+          </div>
+        )}
+
         {/* Summary */}
         {data.summary && (
           <div>
