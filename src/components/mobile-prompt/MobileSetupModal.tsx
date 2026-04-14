@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
+import { writeTextToClipboard } from '@/lib/clipboard'
 
 const STORAGE_KEY_SEEN = 'hermes-mobile-setup-seen'
 
@@ -123,8 +124,7 @@ export function MobileSetupModal({ isOpen, onClose }: MobileSetupModalProps) {
         <button
           type="button"
           onClick={() =>
-            networkUrl &&
-            navigator.clipboard.writeText(networkUrl.url).catch(() => {})
+            networkUrl && writeTextToClipboard(networkUrl.url).catch(() => {})
           }
           className="group flex w-full items-center justify-between rounded-lg border border-primary-700 bg-primary-950 px-4 py-3 transition-colors hover:border-accent-500/50"
         >

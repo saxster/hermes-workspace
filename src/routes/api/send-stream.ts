@@ -8,7 +8,11 @@ import {
   unregisterActiveSendRun,
 } from '../../server/send-run-tracker'
 import { getChatMode } from '../../server/gateway-capabilities'
-import { openaiChat } from '../../server/openai-compat-api'
+import {
+  
+  
+  openaiChat
+} from '../../server/openai-compat-api'
 import {
   SESSIONS_API_UNAVAILABLE_MESSAGE,
   createSession,
@@ -16,6 +20,7 @@ import {
   getGatewayCapabilities,
   streamChat,
 } from '../../server/hermes-api'
+import type {OpenAICompatContentPart, OpenAICompatMessage} from '../../server/openai-compat-api';
 // Hermes agent runs can take 5+ minutes with complex tool chains
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
 const SESSION_BOOTSTRAP_KEYS = new Set(['main', 'new'])
@@ -105,6 +110,52 @@ function getChatMessage(
   return message
 }
 
+/**
+ * Build OpenAI-compatible multimodal content for portable mode.
+ * If there are image attachments, returns an array of content parts;
+ * otherwise returns a plain string.
+ */
+function buildMultimodalContent(
+  message: string,
+  attachments?: Array<Record<string, unknown>>,
+): string | Array<OpenAICompatContentPart> {
+  const imageParts: Array<OpenAICompatContentPart> = []
+
+  if (attachments && attachments.length > 0) {
+    for (const att of attachments) {
+      const mime = (att.contentType ||
+        att.mimeType ||
+        att.mediaType ||
+        '') as string
+      if (!mime.toLowerCase().startsWith('image/')) continue
+
+      let b64 = (att.base64 || att.content || att.data || '') as string
+      if (!b64) {
+        const dataUrl = (att.dataUrl || '') as string
+        if (dataUrl.startsWith('data:') && dataUrl.includes(',')) {
+          b64 = dataUrl.split(',')[1]
+        }
+      }
+      if (!b64) continue
+
+      imageParts.push({
+        type: 'image_url',
+        image_url: { url: `data:${mime};base64,${b64}` },
+      })
+    }
+  }
+
+  if (imageParts.length === 0) {
+    return getChatMessage(message, attachments)
+  }
+
+  const parts: Array<OpenAICompatContentPart> = []
+  const text = message.trim() || 'Please review the attached content.'
+  parts.push({ type: 'text', text })
+  parts.push(...imageParts)
+  return parts
+}
+
 type PortableHistoryMessage = {
   role: string
   content: string
@@ -174,19 +225,40 @@ function getToolCallId(
   )
 }
 
+function parseJsonIfPossible(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!trimmed) return value
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return value
+    }
+  }
+  return value
+}
+
 function getToolArgs(data: Record<string, unknown>): unknown {
   const toolCall = readRecord(data.tool_call)
   const toolFunction = readRecord(toolCall?.function)
-  return toolCall?.arguments ?? toolFunction?.arguments ?? data.args
+  return parseJsonIfPossible(
+    toolCall?.arguments ?? toolFunction?.arguments ?? data.args,
+  )
 }
 
 function getToolResultPreview(data: Record<string, unknown>): string {
-  return (
-    readString(data.result_preview) ||
-    readString(data.result) ||
-    readString(data.output) ||
-    readString(data.message)
-  )
+  const raw = data.result_preview ?? data.result ?? data.output ?? data.message
+  if (typeof raw === 'string') return raw
+  if (raw === undefined || raw === null) return ''
+  try {
+    return JSON.stringify(raw, null, 2)
+  } catch {
+    return String(raw)
+  }
 }
 
 export const Route = createFileRoute('/api/send-stream')({
@@ -262,6 +334,10 @@ export const Route = createFileRoute('/api/send-stream')({
         }
 
         const chatMode = getChatMode()
+        if (chatMode === 'portable' && sessionKey === 'new') {
+          sessionKey = crypto.randomUUID()
+          resolvedFriendlyId = sessionKey
+        }
 
         // Create streaming response using the SHARED server connection
         const encoder = new TextEncoder()
@@ -303,13 +379,12 @@ export const Route = createFileRoute('/api/send-stream')({
             try {
               if (chatMode === 'portable') {
                 const runId = crypto.randomUUID()
-                // In portable mode, keep the original session key so the frontend
-                // streaming state map matches what the chat screen is watching.
-                // In portable mode there are no server-side sessions — always use
-                // 'main' so the store key matches what the UI subscribes to.
-                const portableSessionKey = 'main'
+                const portableSessionKey = sessionKey
                 const portableFriendlyId =
-                  requestedFriendlyId || rawSessionKey || portableSessionKey
+                  resolvedFriendlyId ||
+                  requestedFriendlyId ||
+                  rawSessionKey ||
+                  portableSessionKey
                 let accumulated = ''
 
                 activeRunId = runId
@@ -328,25 +403,34 @@ export const Route = createFileRoute('/api/send-stream')({
                 })
 
                 try {
-                  const portableMessages = [
+                  const userContent = buildMultimodalContent(
+                    message,
+                    attachments,
+                  )
+                  // Inject locale preference so the agent responds in the user's language
+                  const locale = typeof body.locale === 'string' ? body.locale.trim() : ''
+                  const localeSystemMsg: Array<OpenAICompatMessage> = locale && locale !== 'en'
+                    ? [{ role: 'system', content: `Respond in ${locale === 'es' ? 'Spanish' : locale === 'fr' ? 'French' : locale === 'zh' ? 'Chinese' : locale === 'de' ? 'German' : locale === 'ja' ? 'Japanese' : locale === 'ko' ? 'Korean' : locale === 'pt' ? 'Portuguese' : locale === 'ru' ? 'Russian' : locale === 'ar' ? 'Arabic' : 'English'}. The user's interface is set to this language.` }]
+                    : []
+                  const portableMessages: Array<OpenAICompatMessage> = [
+                    ...localeSystemMsg,
                     ...history,
                     {
                       role: 'user',
-                      content: getChatMessage(message, attachments),
+                      content: userContent,
                     },
                   ]
-                  const stream = await openaiChat(
-                    portableMessages,
-                    {
-                      model: typeof body.model === 'string' ? body.model : undefined,
-                      temperature:
-                        typeof body.temperature === 'number'
-                          ? body.temperature
-                          : undefined,
-                      signal: abortController.signal,
-                      stream: true,
-                    },
-                  )
+                  const stream = await openaiChat(portableMessages, {
+                    model:
+                      typeof body.model === 'string' ? body.model : undefined,
+                    temperature:
+                      typeof body.temperature === 'number'
+                        ? body.temperature
+                        : undefined,
+                    signal: abortController.signal,
+                    stream: true,
+                    sessionId: portableSessionKey,
+                  })
 
                   let thinking = ''
                   for await (const chunk of stream) {
@@ -413,7 +497,8 @@ export const Route = createFileRoute('/api/send-stream')({
                 sessionKey,
                 {
                   message: getChatMessage(message, attachments),
-                  model: typeof body.model === 'string' ? body.model : undefined,
+                  model:
+                    typeof body.model === 'string' ? body.model : undefined,
                   system_message: thinking,
                   attachments: attachments || undefined,
                 },
@@ -421,13 +506,14 @@ export const Route = createFileRoute('/api/send-stream')({
                   signal: abortController.signal,
                   onEvent({ event, data }) {
                     const sessionKeyFromEvent =
-                      typeof data.session_id === 'string' && data.session_id.trim()
+                      typeof data.session_id === 'string' &&
+                      data.session_id.trim()
                         ? data.session_id
                         : sessionKey
                     const runId =
                       typeof data.run_id === 'string' && data.run_id.trim()
                         ? data.run_id
-                        : activeRunId ?? undefined
+                        : (activeRunId ?? undefined)
 
                     if (runId && !activeRunId) {
                       activeRunId = runId
@@ -451,28 +537,30 @@ export const Route = createFileRoute('/api/send-stream')({
 
                     if (event === 'run.started') {
                       const userMessage =
-                        data.user_message && typeof data.user_message === 'object'
+                        data.user_message &&
+                        typeof data.user_message === 'object'
                           ? (data.user_message as Record<string, unknown>)
                           : null
                       if (userMessage) {
-                        skipPublish || publishChatEvent('user_message', {
-                          message: {
-                            id: userMessage.id,
-                            role: userMessage.role ?? 'user',
-                            content: [
-                              {
-                                type: 'text',
-                                text:
-                                  typeof userMessage.content === 'string'
-                                    ? userMessage.content
-                                    : '',
-                              },
-                            ],
-                          },
-                          sessionKey: sessionKeyFromEvent,
-                          source: 'hermes',
-                          runId,
-                        })
+                        skipPublish ||
+                          publishChatEvent('user_message', {
+                            message: {
+                              id: userMessage.id,
+                              role: userMessage.role ?? 'user',
+                              content: [
+                                {
+                                  type: 'text',
+                                  text:
+                                    typeof userMessage.content === 'string'
+                                      ? userMessage.content
+                                      : '',
+                                },
+                              ],
+                            },
+                            sessionKey: sessionKeyFromEvent,
+                            source: 'hermes',
+                            runId,
+                          })
                       }
                       return
                     }
@@ -499,7 +587,8 @@ export const Route = createFileRoute('/api/send-stream')({
                     if (event === 'assistant.completed') {
                       // Send full content as a chunk — covers cases where
                       // deltas were missed or response was too short for streaming
-                      const content = typeof data.content === 'string' ? data.content : ''
+                      const content =
+                        typeof data.content === 'string' ? data.content : ''
                       if (content) {
                         const translated = {
                           text: content,
@@ -514,7 +603,8 @@ export const Route = createFileRoute('/api/send-stream')({
                     }
 
                     if (event === 'assistant.delta') {
-                      const delta = typeof data.delta === 'string' ? data.delta : ''
+                      const delta =
+                        typeof data.delta === 'string' ? data.delta : ''
                       if (!delta) return
                       const translated = {
                         text: delta,
@@ -533,13 +623,19 @@ export const Route = createFileRoute('/api/send-stream')({
                       event === 'tool.running'
                     ) {
                       const toolName = getToolName(data)
+                      const preview =
+                        typeof data.preview === 'string'
+                          ? data.preview
+                          : undefined
                       const translated = {
-                        phase: event === 'tool.pending' || event === 'tool.started'
-                          ? 'start'
-                          : 'calling',
+                        phase:
+                          event === 'tool.pending' || event === 'tool.started'
+                            ? 'start'
+                            : 'calling',
                         name: toolName,
                         toolCallId: getToolCallId(data, runId, toolName),
                         args: getToolArgs(data),
+                        preview,
                         sessionKey: sessionKeyFromEvent,
                         runId,
                       }
@@ -583,7 +679,8 @@ export const Route = createFileRoute('/api/send-stream')({
                         phase: 'complete',
                         name: toolName,
                         toolCallId: getToolCallId(data, runId, toolName),
-                        result: resultPreview.slice(0, 200),
+                        args: getToolArgs(data),
+                        result: resultPreview.slice(0, 4000),
                         sessionKey: sessionKeyFromEvent,
                         runId,
                       }
@@ -598,19 +695,22 @@ export const Route = createFileRoute('/api/send-stream')({
                           ? (data.artifact as Record<string, unknown>)
                           : {}
                       const translated = {
-                        phase: 'complete',
                         name: readString(data.tool_name) || 'artifact',
-                        toolCallId: readString(data.tool_call_id) || undefined,
-                        result:
+                        title:
                           readString(artifact.title) ||
-                          readString(artifact.path) ||
-                          readString(data.path) ||
+                          readString(data.title) ||
                           'Artifact created',
+                        kind:
+                          readString(artifact.kind) ||
+                          readString(data.kind) ||
+                          'artifact',
+                        path:
+                          readString(artifact.path) || readString(data.path) || '',
                         sessionKey: sessionKeyFromEvent,
                         runId,
                       }
-                      sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
+                      sendEvent('artifact', translated)
+                      skipPublish || publishChatEvent('artifact', translated)
                       return
                     }
 
@@ -654,7 +754,8 @@ export const Route = createFileRoute('/api/send-stream')({
                     if (event === 'tool.failed') {
                       const errorMessage =
                         readString(
-                          (data.error as Record<string, unknown> | undefined)?.message,
+                          (data.error as Record<string, unknown> | undefined)
+                            ?.message,
                         ) || readString(data.message)
                       const toolName = getToolName(data)
                       const translated = {
@@ -673,8 +774,11 @@ export const Route = createFileRoute('/api/send-stream')({
                     if (event === 'error') {
                       const errorMessage =
                         readString(
-                          (data.error as Record<string, unknown> | undefined)?.message,
-                        ) || 'Hermes stream error'
+                          (data.error as Record<string, unknown> | undefined)
+                            ?.message,
+                        ) ||
+                        readString(data.message) ||
+                        'Hermes stream error'
                       sendEvent('error', {
                         message: errorMessage,
                         sessionKey: sessionKeyFromEvent,
@@ -724,7 +828,7 @@ export const Route = createFileRoute('/api/send-stream')({
 
         return new Response(stream, {
           headers: {
-            'Content-Type': 'text/event-stream',
+            'Content-Type': 'text/event-stream; charset=utf-8',
             'Cache-Control': 'no-cache',
             Connection: 'keep-alive',
             'X-Hermes-Session-Key': sessionKey,

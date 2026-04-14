@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
@@ -18,9 +18,10 @@ import {
 } from '@/components/ui/scroll-area'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import { cn } from '@/lib/utils'
+import { writeTextToClipboard } from '@/lib/clipboard'
 import { toast } from '@/components/ui/toast'
 
-type SkillsTab = 'installed' | 'marketplace' | 'featured'
+type SkillsTab = 'installed' | 'marketplace'
 type SkillsSort = 'name' | 'category'
 
 type SecurityRisk = {
@@ -57,6 +58,32 @@ type SkillsApiResponse = {
 }
 
 type SkillSearchTier = 0 | 1 | 2 | 3
+
+type HubSkill = {
+  id: string
+  name: string
+  description: string
+  author: string
+  category: string
+  tags: Array<string>
+  downloads?: number
+  stars?: number
+  source: string
+  identifier?: string
+  trust_level?: string
+  repo?: string | null
+  installCommand?: string
+  homepage?: string | null
+  installed: boolean
+  extra?: Record<string, unknown>
+}
+
+type HubSearchResponse = {
+  results: Array<HubSkill>
+  source: string
+  total?: number
+  error?: string
+}
 
 const PAGE_LIMIT = 30
 
@@ -103,12 +130,26 @@ export function SkillsScreen() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<SkillsTab>('installed')
   const [searchInput, setSearchInput] = useState('')
+  const [debouncedMarketplaceSearch, setDebouncedMarketplaceSearch] =
+    useState('')
   const [category, setCategory] = useState('All')
   const [sort, setSort] = useState<SkillsSort>('name')
   const [page, setPage] = useState(1)
   const [actionSkillId, setActionSkillId] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<SkillSummary | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (tab !== 'marketplace') return
+
+    const timeout = window.setTimeout(() => {
+      setDebouncedMarketplaceSearch(searchInput)
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [searchInput, tab])
 
   const skillsQuery = useQuery({
     queryKey: ['skills-browser', tab, searchInput, category, page, sort],
@@ -127,6 +168,26 @@ export function SkillsScreen() {
       }
       if (!response.ok) {
         throw new Error(payload.error || 'Failed to fetch skills')
+      }
+      return payload
+    },
+  })
+
+  const hubQuery = useQuery({
+    queryKey: ['skills-hub-search', debouncedMarketplaceSearch],
+    enabled: tab === 'marketplace',
+    queryFn: async function fetchHubResults(): Promise<HubSearchResponse> {
+      const params = new URLSearchParams()
+      params.set('q', debouncedMarketplaceSearch)
+      params.set('source', 'all')
+      params.set('limit', '20')
+
+      const response = await fetch(
+        `/api/skills/hub-search?${params.toString()}`,
+      )
+      const payload = (await response.json()) as HubSearchResponse
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to search skills hub')
       }
       return payload
     },
@@ -175,33 +236,153 @@ export function SkillsScreen() {
     [searchInput, skillsQuery.data?.skills],
   )
 
+  const marketplaceSkills = useMemo<Array<SkillSummary>>(
+    function resolveMarketplaceSkills() {
+      return (hubQuery.data?.results || []).map(function mapHubSkill(skill) {
+        // Gateway returns: name, description, source, identifier, trust_level, repo, path, tags, extra, installed
+        const skillId = skill.id || skill.name
+        const author =
+          skill.author ||
+          (skill.repo ? skill.repo.split('/')[0] : null) ||
+          (skill.extra as Record<string, unknown>)?.author ||
+          skill.source ||
+          'Community'
+        const homepage =
+          skill.homepage ||
+          skill.repo ||
+          (skill.extra as Record<string, unknown>)?.homepage ||
+          null
+        const category =
+          skill.category ||
+          (skill.extra as Record<string, unknown>)?.category ||
+          'Productivity'
+
+        return {
+          id: skillId,
+          slug: skillId,
+          name: skill.name || skillId,
+          description: skill.description,
+          author: String(author),
+          triggers: skill.tags,
+          tags: skill.tags,
+          homepage: typeof homepage === 'string' ? homepage : null,
+          category: String(category),
+          icon:
+            skill.source === 'github'
+              ? '🐙'
+              : skill.source === 'official' ||
+                  skill.trust_level === 'builtin'
+                ? '✅'
+                : skill.source === 'skills-sh'
+                  ? '📦'
+                  : skill.source === 'lobehub'
+                    ? '🧊'
+                    : skill.source === 'claude-marketplace'
+                      ? '🤖'
+                      : '🧩',
+          content: [
+            skill.description,
+            skill.identifier ? `Identifier: ${skill.identifier}` : '',
+            skill.trust_level ? `Trust: ${skill.trust_level}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
+          fileCount: 0,
+          sourcePath: skill.identifier || (typeof homepage === 'string' ? homepage : '') || skill.source,
+          installed: skill.installed,
+          enabled: skill.installed,
+          featuredGroup: undefined,
+          security: {
+            level:
+              skill.trust_level === 'builtin'
+                ? 'safe'
+                : skill.trust_level === 'trusted'
+                  ? 'safe'
+                  : 'review',
+            flags: [],
+            score: 0,
+          },
+        }
+      })
+    },
+    [hubQuery.data?.results],
+  )
+
+  async function copyCommandAndToast(command: string, message: string) {
+    try {
+      await writeTextToClipboard(command)
+      toast(`${message} Copied: ${command}`, {
+        type: 'warning',
+        icon: '📋',
+      })
+    } catch {
+      toast(`${message} ${command}`, {
+        type: 'warning',
+        icon: '📋',
+        duration: 7000,
+      })
+    }
+  }
+
   async function runSkillAction(
     action: 'install' | 'uninstall' | 'toggle',
     payload: {
       skillId: string
       enabled?: boolean
+      source?: HubSkill['source']
     },
   ) {
     setActionError(null)
     setActionSkillId(payload.skillId)
 
     try {
-      const response = await fetch('/api/skills', {
+      const endpoint =
+        action === 'install'
+          ? '/api/skills/install'
+          : action === 'uninstall'
+            ? '/api/skills/uninstall'
+            : '/api/skills/toggle'
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
           skillId: payload.skillId,
+          name: payload.skillId,
+          identifier: payload.skillId,
           enabled: payload.enabled,
+          source: payload.source,
         }),
       })
 
-      const data = (await response.json()) as { error?: string }
+      const data = (await response.json()) as {
+        error?: string
+        command?: string
+        ok?: boolean
+      }
       if (!response.ok) {
         throw new Error(data.error || 'Action failed')
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['skills-browser'] })
+      if (
+        (action === 'install' || action === 'uninstall') &&
+        data.ok === false
+      ) {
+        if (data.command) {
+          await copyCommandAndToast(
+            data.command,
+            data.error || 'Gateway action unavailable.',
+          )
+          return
+        }
+        throw new Error(data.error || 'Action failed')
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['skills-browser'] }),
+        queryClient.invalidateQueries({ queryKey: ['skills-hub-search'] }),
+      ])
       setSelectedSkill(function updateSelectedSkill(current) {
         if (!current || current.id !== payload.skillId) return current
         if (action === 'install') {
@@ -293,53 +474,58 @@ export function SkillsScreen() {
                 <TabsTab value="installed" className="flex-1 sm:min-w-[132px]">
                   Installed
                 </TabsTab>
-                <TabsTab value="marketplace" className="flex-1 sm:min-w-[168px]">
+                <TabsTab
+                  value="marketplace"
+                  className="flex-1 sm:min-w-[168px]"
+                >
                   Marketplace
                 </TabsTab>
-                <TabsTab value="featured" className="flex-1 sm:min-w-[120px]">
-                  Featured
-                </TabsTab>
+
               </TabsList>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  value={searchInput}
-                  onChange={(event) => handleSearchChange(event.target.value)}
-                  placeholder="Search by name, tags, or description"
-                  className="h-9 w-full min-w-0 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none transition-colors focus:border-primary sm:min-w-[220px]"
-                />
+              {tab !== 'marketplace' ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={searchInput}
+                    onChange={(event) => handleSearchChange(event.target.value)}
+                    placeholder="Search by name, tags, or description"
+                    className="h-9 w-full min-w-0 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none transition-colors focus:border-primary sm:min-w-[220px]"
+                  />
 
-                {tab === 'marketplace' ? (
-                  <select
-                    value={category}
-                    onChange={(event) =>
-                      handleCategoryChange(event.target.value)
-                    }
-                    className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
-                  >
-                    {categories.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
+                  {tab === 'installed' ? (
+                    <select
+                      value={category}
+                      onChange={(event) =>
+                        handleCategoryChange(event.target.value)
+                      }
+                      className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
+                    >
+                      {categories.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
 
-                {tab === 'marketplace' ? (
-                  <select
-                    value={sort}
-                    onChange={(event) =>
-                      handleSortChange(
-                        event.target.value === 'category' ? 'category' : 'name',
-                      )
-                    }
-                    className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
-                  >
-                    <option value="name">Name A-Z</option>
-                    <option value="category">Category</option>
-                  </select>
-                ) : null}
-              </div>
+                  {tab === 'installed' ? (
+                    <select
+                      value={sort}
+                      onChange={(event) =>
+                        handleSortChange(
+                          event.target.value === 'category'
+                            ? 'category'
+                            : 'name',
+                        )
+                      }
+                      className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
+                    >
+                      <option value="name">Name A-Z</option>
+                      <option value="category">Category</option>
+                    </select>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             {actionError ? (
@@ -365,14 +551,57 @@ export function SkillsScreen() {
               />
             </TabsPanel>
 
-            <TabsPanel value="marketplace" className="pt-2">
+            <TabsPanel value="marketplace" className="space-y-3 pt-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <input
+                  value={searchInput}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  placeholder="Search Skills Hub, GitHub, and local fallback"
+                  className="h-10 w-full rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none transition-colors focus:border-primary"
+                />
+                <div className="text-xs text-primary-500 sm:text-right">
+                  Source: {hubQuery.data?.source || 'hub'}
+                </div>
+              </div>
+
+              {hubQuery.error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {hubQuery.error instanceof Error
+                    ? hubQuery.error.message
+                    : 'Failed to load marketplace skills.'}
+                </div>
+              ) : hubQuery.data &&
+                (hubQuery.data.source === 'installed-fallback' ||
+                  hubQuery.data.source === 'error') ? (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                  Skills Hub search unavailable — showing installed skills
+                  instead. Ensure the Hermes gateway is running.
+                </div>
+              ) : null}
+
               <SkillsGrid
-                skills={skills}
-                loading={skillsQuery.isPending}
+                skills={marketplaceSkills}
+                loading={hubQuery.isPending}
                 actionSkillId={actionSkillId}
                 tab="marketplace"
+                emptyState={{
+                  title: searchInput.trim()
+                    ? 'No hub skills found'
+                    : 'Search the Skills Hub',
+                  description: searchInput.trim()
+                    ? 'Try a different search term. If Skills Hub is unavailable, local installed skills are used as fallback.'
+                    : 'Start typing to search Skills Hub and other skill sources.',
+                }}
                 onOpenDetails={setSelectedSkill}
-                onInstall={(skillId) => runSkillAction('install', { skillId })}
+                onInstall={(skillId) => {
+                  const skill = hubQuery.data?.results.find(
+                    (entry) => entry.id === skillId,
+                  )
+                  runSkillAction('install', {
+                    skillId,
+                    source: skill?.source,
+                  })
+                }}
                 onUninstall={(skillId) =>
                   runSkillAction('uninstall', { skillId })
                 }
@@ -381,23 +610,10 @@ export function SkillsScreen() {
                 }
               />
             </TabsPanel>
-
-            <TabsPanel value="featured" className="pt-2">
-              <FeaturedGrid
-                skills={skills}
-                loading={skillsQuery.isPending}
-                actionSkillId={actionSkillId}
-                onOpenDetails={setSelectedSkill}
-                onInstall={(skillId) => runSkillAction('install', { skillId })}
-                onUninstall={(skillId) =>
-                  runSkillAction('uninstall', { skillId })
-                }
-              />
-            </TabsPanel>
           </Tabs>
         </section>
 
-        {tab !== 'featured' ? (
+        {tab !== 'marketplace' ? (
           <footer className="flex items-center justify-between rounded-xl border border-primary-200 bg-primary-50/80 px-3 py-2.5 text-sm text-primary-500 tabular-nums">
             <span>
               {(skillsQuery.data?.total || 0).toLocaleString()} total skills
@@ -559,6 +775,10 @@ type SkillsGridProps = {
   loading: boolean
   actionSkillId: string | null
   tab: 'installed' | 'marketplace'
+  emptyState?: {
+    title: string
+    description: string
+  }
   onOpenDetails: (skill: SkillSummary) => void
   onInstall: (skillId: string) => void
   onUninstall: (skillId: string) => void
@@ -721,6 +941,7 @@ function SkillsGrid({
   loading,
   actionSkillId,
   tab,
+  emptyState,
   onOpenDetails,
   onInstall,
   onUninstall,
@@ -731,33 +952,14 @@ function SkillsGrid({
   }
 
   if (skills.length === 0) {
-    const isMarketplace = tab === 'marketplace' || tab === ('featured' as string)
     return (
       <div className="rounded-xl border border-dashed border-primary-200 bg-primary-100/40 px-4 py-8 text-center">
         <p className="text-sm font-medium text-primary-700">
-          {isMarketplace ? 'Marketplace Not Configured' : 'No skills found'}
+          {emptyState?.title || 'No skills found'}
         </p>
         <p className="mt-1 text-xs text-primary-500 text-pretty max-w-sm mx-auto">
-          {isMarketplace ? (
-            <>
-              Run{' '}
-              <code className="rounded bg-primary-200 px-1.5 py-0.5 font-mono text-[11px]">
-                hermes skills sync
-              </code>{' '}
-              in your terminal to download the skills registry, or browse skills
-              at{' '}
-              <a
-                href="https://github.com/NousResearch/hermes-agent"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-500 hover:underline"
-              >
-                Skills Hub
-              </a>
-            </>
-          ) : (
-            'Try adjusting your filters or search term'
-          )}
+          {emptyState?.description ||
+            'Try adjusting your filters or search term'}
         </p>
       </div>
     )

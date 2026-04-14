@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AuthStatus } from '@/lib/hermes-auth'
+import { writeTextToClipboard } from '@/lib/clipboard'
 import { fetchHermesAuthStatus } from '@/lib/hermes-auth'
 
 const POLL_INTERVAL_MS = 2_000
@@ -26,7 +27,7 @@ function getSetupSteps(
     {
       title: 'Use any OpenAI-compatible backend',
       command: 'Set HERMES_API_URL to your backend base URL',
-      note: 'Portable chat works with any backend that exposes /v1/chat/completions',
+      note: 'Portable chat works with any backend that exposes /v1/chat/completions (Ollama, LiteLLM, vLLM, etc.)',
     },
     {
       title: 'Optional: run a Hermes gateway locally',
@@ -38,8 +39,13 @@ function getSetupSteps(
       command: `cd hermes-agent && ${python} -m venv .venv && ${platform === 'windows' ? '.venv\\Scripts\\activate' : 'source .venv/bin/activate'} && ${pip} install -e .`,
     },
     {
+      title: 'Enable the HTTP API server',
+      command: 'echo "API_SERVER_ENABLED=true" >> ~/.hermes/.env',
+      note: 'The gateway HTTP API is opt-in. Without this, the gateway serves messaging platforms but does not expose port 8642 for the workspace.',
+    },
+    {
       title: 'Start the gateway',
-      command: `cd hermes-agent && ${platform === 'windows' ? '.venv\\Scripts\\activate' : 'source .venv/bin/activate'} && hermes gateway`,
+      command: `cd hermes-agent && ${platform === 'windows' ? '.venv\\Scripts\\activate' : 'source .venv/bin/activate'} && hermes --gateway`,
       note: 'Or use Auto-Start below if hermes-agent is already installed locally',
     },
   ]
@@ -120,7 +126,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
 
   const handleCopy = async (text: string, idx: number) => {
     try {
-      await navigator.clipboard.writeText(text)
+      await writeTextToClipboard(text)
       setCopiedIdx(idx)
     } catch {
       /* clipboard not available */

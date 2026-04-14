@@ -38,14 +38,26 @@ export const Route = createFileRoute('/api/history')({
             friendlyId,
             defaultKey: 'main',
           })
-          // "main" doesn't exist in Hermes — resolve to latest session
-          if (sessionKey === 'main' || sessionKey === 'new') {
+          // Keep /chat/new empty until the first message creates a real session.
+          if (sessionKey === 'new') {
+            return json({
+              sessionKey: 'new',
+              sessionId: 'new',
+              messages: [],
+            })
+          }
+          // "main" doesn't exist in Hermes — resolve it to the latest session.
+          if (sessionKey === 'main') {
             try {
               const sessions = await listSessions(1, 0)
               if (sessions.length > 0) {
                 sessionKey = sessions[0].id
               } else {
-                return json({ sessionKey: 'new', sessionId: 'new', messages: [] })
+                return json({
+                  sessionKey: 'new',
+                  sessionId: 'new',
+                  messages: [],
+                })
               }
             } catch {
               return json({ sessionKey: 'new', sessionId: 'new', messages: [] })

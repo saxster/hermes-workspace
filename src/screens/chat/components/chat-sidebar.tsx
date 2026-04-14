@@ -6,6 +6,7 @@ import {
   BookOpen01Icon,
   BrainIcon,
   Chat01Icon,
+  CheckListIcon,
   Clock01Icon,
   ComputerTerminal01Icon,
   DashboardSquare01Icon,
@@ -13,11 +14,10 @@ import {
   MessageMultiple01Icon,
   Moon02Icon,
   PencilEdit02Icon,
-  PuzzleIcon,
-
-  Search01Icon, Settings01Icon, Sun02Icon
+  Search01Icon, Settings01Icon, Sun02Icon, UserGroupIcon, UserMultipleIcon
 } from '@hugeicons/core-free-icons'
 import { AnimatePresence, motion } from 'motion/react'
+import { t } from '@/lib/i18n'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
@@ -557,6 +557,7 @@ function ChatSidebarComponent({
   const isJobsActive = pathname === '/jobs'
   const isMemoryActive = pathname === '/memory'
   const isLearnActive = pathname === '/learn'
+  const isTasksActive = pathname === '/tasks'
   const mainRoutes = ['/chat', '/new', '/files', '/terminal']
   const knowledgeRoutes = ['/memory', '/skills', '/learn']
   const systemRoutes = ['/settings', '/logs']
@@ -754,36 +755,43 @@ function ChatSidebarComponent({
       kind: 'link',
       to: '/dashboard',
       icon: DashboardSquare01Icon,
-      label: 'Dashboard',
+      label: t('nav.dashboard'),
       active: isDashboardActive,
     },
     {
       kind: 'link',
       to: '/chat',
       icon: MessageMultiple01Icon,
-      label: 'Chat',
+      label: t('nav.chat'),
       active: isChatActive,
     },
     {
       kind: 'link',
       to: '/files',
       icon: File01Icon,
-      label: 'Files',
+      label: t('nav.files'),
       active: isFilesActive,
     },
     {
       kind: 'link',
       to: '/terminal',
       icon: ComputerTerminal01Icon,
-      label: 'Terminal',
+      label: t('nav.terminal'),
       active: isTerminalActive,
     },
     {
       kind: 'link',
       to: '/jobs',
       icon: Clock01Icon,
-      label: 'Jobs',
+      label: t('nav.jobs'),
       active: isJobsActive,
+    },
+    {
+      kind: 'link',
+      to: '/tasks',
+      icon: CheckListIcon,
+      label: t('nav.tasks'),
+      active: isTasksActive,
     },
   ]
 
@@ -792,23 +800,25 @@ function ChatSidebarComponent({
       kind: 'link',
       to: '/memory',
       icon: BrainIcon,
-      label: 'Memory',
+      label: t('nav.memory'),
       active: isMemoryActive,
     },
     {
       kind: 'link',
       to: '/skills',
       icon: PuzzleIcon,
-      label: 'Skills',
+      label: t('nav.skills'),
       active: isSkillsActive,
       dataTour: 'skills',
     },
+      active: isLearnActive,
+    },
     {
       kind: 'link',
-      to: '/learn',
-      icon: BookOpen01Icon,
-      label: 'Learn',
-      active: isLearnActive,
+      to: '/profiles',
+      icon: UserMultipleIcon,
+      label: t('nav.profiles'),
+      active: pathname === '/profiles',
     },
   ]
 

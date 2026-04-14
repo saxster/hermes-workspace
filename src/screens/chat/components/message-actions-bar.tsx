@@ -1,10 +1,6 @@
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Copy01Icon,
-  RefreshIcon,
-  Tick02Icon,
-} from '@hugeicons/core-free-icons'
+import { Copy01Icon, RefreshIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { MessageTimestamp } from './message-timestamp'
 import {
   TooltipContent,
@@ -12,6 +8,7 @@ import {
   TooltipRoot,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { writeTextToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/utils'
 
 type MessageActionsBarProps = {
@@ -61,13 +58,13 @@ export function MessageActionsBar({
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
-    const didCopy = await copyToClipboard(text)
-    if (didCopy) {
+    try {
+      await writeTextToClipboard(text)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1400)
-      return
+    } catch {
+      setCopied(false)
     }
-    setCopied(false)
   }
 
   const positionClass = align === 'end' ? 'justify-end' : 'justify-start'

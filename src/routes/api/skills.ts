@@ -1,13 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
-import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
+  BEARER_TOKEN,
+  HERMES_API,
   HERMES_UPGRADE_INSTRUCTIONS,
   ensureGatewayProbed,
   getCapabilities,
 } from '../../server/gateway-capabilities'
 import { requireJsonContentType } from '../../server/rate-limit'
+import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
 type SkillsTab = 'installed' | 'marketplace' | 'featured'
 type SkillsSort = 'name' | 'category'
@@ -38,8 +40,6 @@ type SkillSummary = {
   featuredGroup?: string
   security: SecurityRisk
 }
-
-const HERMES_API_URL = process.env.HERMES_API_URL || 'http://127.0.0.1:8642'
 
 const KNOWN_CATEGORIES = [
   'All',
@@ -87,9 +87,7 @@ function readString(value: unknown): string {
 
 function readStringArray(value: unknown): Array<string> {
   if (!Array.isArray(value)) return []
-  return value
-    .map((entry) => readString(entry))
-    .filter(Boolean)
+  return value.map((entry) => readString(entry)).filter(Boolean)
 }
 
 function slugify(input: string): string {
@@ -145,9 +143,7 @@ function guessCategory(record: Record<string, unknown>): string {
 function normalizeSkill(value: unknown): SkillSummary | null {
   const record = asRecord(value)
   const id =
-    readString(record.id) ||
-    readString(record.slug) ||
-    readString(record.name)
+    readString(record.id) || readString(record.slug) || readString(record.name)
   if (!id) return null
 
   const name = readString(record.name) || id
@@ -180,8 +176,10 @@ function normalizeSkill(value: unknown): SkillSummary | null {
         ? record.fileCount
         : 0,
     sourcePath,
-    installed: Boolean(record.installed ?? false),
-    enabled: Boolean(record.enabled ?? record.installed ?? false),
+    // Hermes /api/skills returns the installed skill inventory. Older payloads
+    // omit explicit installed/enabled flags, so default to installed=true.
+    installed: Boolean(record.installed ?? true),
+    enabled: Boolean(record.enabled ?? record.installed ?? true),
     builtin: Boolean(record.builtin),
     featuredGroup: undefined,
     security: normalizeSecurity(record.security),
@@ -189,7 +187,10 @@ function normalizeSkill(value: unknown): SkillSummary | null {
 }
 
 async function fetchHermesSkills(): Promise<Array<SkillSummary>> {
-  const response = await fetch(`${HERMES_API_URL}/api/skills`)
+  const headers: Record<string, string> = {}
+  if (BEARER_TOKEN) headers['Authorization'] = `Bearer ${BEARER_TOKEN}`
+
+  const response = await fetch(`${HERMES_API}/api/skills`, { headers })
   if (!response.ok) {
     const body = await response.text().catch(() => '')
     throw new Error(body || `Hermes skills request failed (${response.status})`)
@@ -280,7 +281,9 @@ export const Route = createFileRoute('/api/skills')({
 
           const sourceItems = await fetchHermesSkills()
           const installedLookup = new Set(
-            sourceItems.filter((skill) => skill.installed).map((skill) => skill.id),
+            sourceItems
+              .filter((skill) => skill.installed)
+              .map((skill) => skill.id),
           )
 
           const filteredByTab = sourceItems.filter((skill) => {
@@ -346,13 +349,61 @@ export const Route = createFileRoute('/api/skills')({
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
 
-        return json(
-          {
-            ok: false,
-            error: 'Skill installation is not available in the Hermes Workspace fork.',
-          },
-          { status: 501 },
-        )
+        try {
+          const body = (await request.json()) as {
+            action?: string
+            identifier?: string
+            name?: string
+            category?: string
+            force?: boolean
+            enabled?: boolean
+          }
+          const action = (body.action || 'install').trim()
+
+          let endpoint: string
+          let payload: Record<string, unknown>
+
+          if (action === 'uninstall') {
+            endpoint = '/api/skills/uninstall'
+            payload = { name: body.name || body.identifier || '' }
+          } else if (action === 'toggle') {
+            endpoint = '/api/skills/toggle'
+            payload = {
+              name: body.name || body.identifier || '',
+              enabled: body.enabled,
+            }
+          } else {
+            endpoint = '/api/skills/install'
+            payload = {
+              identifier: body.identifier || '',
+              category: body.category || '',
+              force: Boolean(body.force),
+            }
+          }
+
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          }
+          if (BEARER_TOKEN) headers['Authorization'] = `Bearer ${BEARER_TOKEN}`
+
+          const response = await fetch(`${HERMES_API}${endpoint}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(120_000),
+          })
+
+          const result = await response.json()
+          return json(result, { status: response.status })
+        } catch (err) {
+          return json(
+            {
+              ok: false,
+              error: err instanceof Error ? err.message : String(err),
+            },
+            { status: 500 },
+          )
+        }
       },
     },
   },

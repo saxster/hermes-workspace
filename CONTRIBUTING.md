@@ -39,7 +39,7 @@ pnpm build
 
 See `.env.example` for all options. Key ones:
 
-- `HERMES_API_URL` — Hermes Agent FastAPI backend (default: `http://127.0.0.1:8642`)
+- `HERMES_API_URL` — Hermes Agent gateway backend (default: `http://127.0.0.1:8642`)
 - `HERMES_PASSWORD` — Optional password protection for the web UI
 - `HERMES_ALLOWED_HOSTS` — Comma-separated hostnames for non-localhost access
 
@@ -50,4 +50,3 @@ See `.env.example` for all options. Key ones:
 - **Describe what you changed** — clear PR title + description
 - **No secrets** — never commit API keys, tokens, or passwords
 - **Follow existing patterns** — match the code style you see
-

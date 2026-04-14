@@ -15,7 +15,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   signal: 'Signal',
   imessage: 'iMessage',
   webchat: 'Hermes',
-  'openclaw-control-ui': 'Hermes',
+  'hermes-workspace': 'Hermes',
   slack: 'Slack',
   irc: 'IRC',
   googlechat: 'Google Chat',
@@ -57,7 +57,9 @@ export function formatSessionKey(key: string): string {
   }
 
   // Fallback: last meaningful segment
-  const lastMeaningful = parts.filter((p) => p.length > 8 ? false : true).pop()
+  const lastMeaningful = parts
+    .filter((p) => (p.length > 8 ? false : true))
+    .pop()
   return lastMeaningful ? titleCase(lastMeaningful) : key
 }
 
