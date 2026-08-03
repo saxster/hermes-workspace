@@ -138,3 +138,6 @@ __pycache__/
 .env.bak
 .runtime/
 workspace-final-markdown-review.md
+
+# graphify tool output
+graphify-out/
